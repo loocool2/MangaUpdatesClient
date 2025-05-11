@@ -1,5 +1,6 @@
 package com.example.mangaupdates
 
+import android.net.Uri
 import android.os.Bundle
 import android.util.Log
 import androidx.activity.ComponentActivity
@@ -13,8 +14,6 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.Button
 import androidx.compose.material3.CircularProgressIndicator
-import androidx.compose.material3.Scaffold
-import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextField
 import androidx.compose.runtime.Composable
@@ -27,15 +26,18 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.input.PasswordVisualTransformation
-import androidx.compose.ui.tooling.preview.Preview
-import com.example.mangaupdates.ui.theme.MangaupdatesTheme
 import androidx.compose.ui.unit.dp
+import androidx.navigation.NavController
+import androidx.navigation.compose.NavHost
+import androidx.navigation.compose.composable
+import androidx.navigation.compose.rememberNavController
+import com.example.mangaupdates.ui.theme.MangaupdatesTheme
 import kotlinx.coroutines.launch
-import retrofit2.Retrofit
-import retrofit2.converter.gson.GsonConverterFactory
 import okhttp3.OkHttpClient
 import okhttp3.logging.HttpLoggingInterceptor
 import retrofit2.HttpException
+import retrofit2.Retrofit
+import retrofit2.converter.gson.GsonConverterFactory
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -43,14 +45,43 @@ class MainActivity : ComponentActivity() {
         enableEdgeToEdge()
         setContent {
             MangaupdatesTheme {
-                LoginScreen()
+                MangaApp()
             }
         }
     }
 }
 
 @Composable
-fun LoginScreen() {
+fun MangaApp() {
+    val navController = rememberNavController()
+
+
+    NavHost(navController, startDestination = "login") {
+
+        composable("login") {
+            LoginScreen(navController)
+        }
+
+        composable("search/{username}") { backStackEntry ->
+            val username = backStackEntry.arguments?.getString("username") ?: ""
+            SearchScreen(username = username, navController = navController)
+        }
+
+        composable("details") {
+            val series = navController.previousBackStackEntry
+                ?.savedStateHandle
+                ?.get<MangaUpdatesApi.SeriesInfo>("series")
+
+            if (series != null) {
+                DetailScreen(series)
+            }
+        }
+    }
+
+}
+
+@Composable
+fun LoginScreen(navController: NavController) {
     //state variables
     var username by remember { mutableStateOf("") }
     var password by remember { mutableStateOf("") }
@@ -82,12 +113,19 @@ fun LoginScreen() {
             coroutineScope.launch {
                 isLoading = true
                 try {
-                    val response = ApiClient.api.login(LoginRequest(username, password))
+                    val response = ApiClient.api.login(
+                        MangaUpdatesApi.LoginRequest(
+                            username,
+                            password
+                        )
+                    )
 
                     if (response.status == "success") {
                         loginSuccess = true
-                        Log.d("LoginSuccess", "✅ Session Token: ${response.context?.session_token}")
-                        Log.d("LoginSuccess", "✅ UID: ${response.context?.uid}")
+                        val token = response.context?.session_token ?: ""
+                        val uid = response.context?.uid ?: 0L
+                        navController.navigate("search/${Uri.encode(username)}")
+
                     } else {
                         loginSuccess = false
                         Log.e("LoginFailure", "❌ Login failed: ${response.reason}")
@@ -137,6 +175,8 @@ object ApiClient {
         .build()
 
     val api: MangaUpdatesApi = retrofit.create(MangaUpdatesApi::class.java)
+
+
 }
 
 
