@@ -14,6 +14,8 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.Button
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextField
 import androidx.compose.runtime.Composable
@@ -28,9 +30,11 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
 import androidx.navigation.NavController
+import androidx.navigation.NavType
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
+import androidx.navigation.navArgument
 import com.example.mangaupdates.ui.theme.MangaupdatesTheme
 import kotlinx.coroutines.launch
 import okhttp3.OkHttpClient
@@ -38,46 +42,47 @@ import okhttp3.logging.HttpLoggingInterceptor
 import retrofit2.HttpException
 import retrofit2.Retrofit
 import retrofit2.converter.gson.GsonConverterFactory
+import com.example.mangaupdates.MangaUpdatesApi.SeriesInfo
+
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        enableEdgeToEdge()
         setContent {
-            MangaupdatesTheme {
-                MangaApp()
+            MaterialTheme {
+                Surface {
+                    val navController = rememberNavController()
+
+                    NavHost(navController, startDestination = "login") {
+                        composable("login") {
+                            LoginScreen(navController)
+                        }
+                        composable("search") {
+                            SearchScreen(navController)
+                        }
+                        composable("details") {
+                            // We’ll pull everything off the “search” entry here:
+                            val searchEntry = navController.getBackStackEntry("search")
+                            val seriesInfo = searchEntry.savedStateHandle
+                                .get<SeriesInfo>("seriesInfo")
+                                ?: return@composable
+                            val token      = searchEntry.savedStateHandle
+                                .get<String>("token")
+                                ?: return@composable
+                            val userId = searchEntry.savedStateHandle
+                                .get<Long>("userId") ?: return@composable
+
+                            DetailScreen(
+                                seriesInfo = seriesInfo,
+                                token = token,
+                                userId = userId
+                            )
+                        }
+                    }
+                }
             }
         }
     }
-}
-
-@Composable
-fun MangaApp() {
-    val navController = rememberNavController()
-
-
-    NavHost(navController, startDestination = "login") {
-
-        composable("login") {
-            LoginScreen(navController)
-        }
-
-        composable("search/{username}") { backStackEntry ->
-            val username = backStackEntry.arguments?.getString("username") ?: ""
-            SearchScreen(username = username, navController = navController)
-        }
-
-        composable("details") {
-            val series = navController.previousBackStackEntry
-                ?.savedStateHandle
-                ?.get<MangaUpdatesApi.SeriesInfo>("series")
-
-            if (series != null) {
-                DetailScreen(series)
-            }
-        }
-    }
-
 }
 
 @Composable
@@ -122,10 +127,15 @@ fun LoginScreen(navController: NavController) {
 
                     if (response.status == "success") {
                         loginSuccess = true
-                        val token = response.context?.session_token ?: ""
                         val uid = response.context?.uid ?: 0L
-                        navController.navigate("search/${Uri.encode(username)}")
-
+                        navController.currentBackStackEntry
+                            ?.savedStateHandle
+                            ?.set("userId", uid)
+                        val token = response.context?.session_token ?: ""
+                        navController.currentBackStackEntry
+                            ?.savedStateHandle
+                            ?.set("token", token)
+                        navController.navigate("search")
                     } else {
                         loginSuccess = false
                         Log.e("LoginFailure", "❌ Login failed: ${response.reason}")

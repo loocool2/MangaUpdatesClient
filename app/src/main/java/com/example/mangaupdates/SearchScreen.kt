@@ -1,6 +1,7 @@
 package com.example.mangaupdates
 
 
+import android.net.Uri
 import android.util.Log
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
@@ -34,16 +35,46 @@ import androidx.compose.ui.unit.dp
 import coil.compose.rememberAsyncImagePainter
 import kotlinx.coroutines.launch
 import androidx.compose.foundation.clickable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.navigation.NavController
 
+
 @Composable
-fun SearchScreen(username: String, navController: NavController) {
+fun SearchScreen(navController: NavController) {
     var query by remember { mutableStateOf("") }
     var results by remember { mutableStateOf(emptyList<MangaUpdatesApi.SeriesInfo>()) }
     val coroutineScope = rememberCoroutineScope()
 
+    val loginEntry = remember(navController) {
+        navController.getBackStackEntry("login")
+    }
+    val userId = loginEntry.savedStateHandle.get<Long>("userId") ?: 0L
+
+
+    val token = loginEntry
+        .savedStateHandle
+        .get<String>("token")
+        .orEmpty()
+
+    LaunchedEffect(token) {
+        navController.currentBackStackEntry
+            ?.savedStateHandle
+            ?.set("token", token)
+    }
+
+    LaunchedEffect(userId) {
+        navController.currentBackStackEntry
+            ?.savedStateHandle
+            ?.set("userId", userId)
+    }
+
+
+    val searchEntry = remember(navController) {
+        navController.getBackStackEntry("search")
+    }
+
     Column(Modifier.padding(16.dp)) {
-        Text("Welcome $username", style = MaterialTheme.typography.titleMedium)
+        Text("Welcome User", style = MaterialTheme.typography.titleMedium)
         Spacer(Modifier.height(16.dp))
 
         OutlinedTextField(
@@ -105,7 +136,10 @@ fun SearchScreen(username: String, navController: NavController) {
                         modifier = Modifier
                             .fillMaxWidth()
                             .clickable {
-                                navController.currentBackStackEntry?.savedStateHandle?.set("series", series)
+                                Log.d("SearchScreen","seriesId=${series.id}, userId=$userId")
+                                searchEntry.savedStateHandle.set("seriesInfo", series)
+                                searchEntry.savedStateHandle.set("userId", userId)
+                                searchEntry.savedStateHandle.set("seriesInfo", series)
                                 navController.navigate("details")
                             }
                             .padding(8.dp)
@@ -120,4 +154,5 @@ fun SearchScreen(username: String, navController: NavController) {
         }
 
     }
+
 }
